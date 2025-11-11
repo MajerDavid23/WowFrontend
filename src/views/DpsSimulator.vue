@@ -15,8 +15,8 @@
         </v-col>
 
         <v-col cols="12" md="4">
-          <v-btn color="primary" :loading="loading" @click="fetchEquipment" class="w-100">
-            {{ loading ? "Betöltés..." : "Felszerelés lekérése" }}
+          <v-btn color="primary" :loading="loading" @click="loadCharacterData" class="w-100">
+            {{ loading ? "Betöltés..." : "Felszerelés + Statok lekérése" }}
           </v-btn>
         </v-col>
       </v-row>
@@ -24,6 +24,17 @@
       <v-alert v-if="error" type="error" class="mb-4" border="start" prominent>
         {{ error }}
       </v-alert>
+
+      <v-card v-if="characterStats" class="mb-6 pa-4" color="blue-grey-lighten-5">
+        <h3 class="text-h6 mb-3">📊 Aktuális statok (Blizzard /stats)</h3>
+        <v-row>
+          <v-col cols="6" sm="4" md="3" v-for="(value, key) in displayedStats" :key="key">
+            <v-chip color="indigo" class="ma-1" size="large" variant="elevated">
+              {{ key }}: {{ formatStatValue(value) }}
+            </v-chip>
+          </v-col>
+        </v-row>
+      </v-card>
 
       <v-table v-if="equipment.length" hover density="comfortable" class="equipment-table">
         <thead>
@@ -41,11 +52,16 @@
             <td>{{ item.itemLevel }}</td>
             <td>
               <div v-if="filteredStats(item.stats)?.length">
-                <div v-for="(stat, si) in filteredStats(item.stats)" :key="si">
-                  <v-chip size="small" color="teal-darken-2" class="ma-1" variant="elevated">
-                    +{{ stat.value }} {{ stat.type }}
-                  </v-chip>
-                </div>
+                <v-chip
+                  v-for="(stat, si) in filteredStats(item.stats)"
+                  :key="si"
+                  size="small"
+                  color="teal-darken-2"
+                  class="ma-1"
+                  variant="elevated"
+                >
+                  +{{ stat.value }} {{ stat.type }}
+                </v-chip>
               </div>
               <div v-else class="text-grey">—</div>
             </td>
@@ -71,7 +87,6 @@
             clearable
           />
         </v-col>
-
         <v-col cols="2">
           <v-btn color="error" icon="mdi-delete" @click="removeReplacement(index)" title="Sor törlése" />
         </v-col>
@@ -100,32 +115,36 @@
           <div><b>Különbség:</b> {{ simulation.dpsDifference.toFixed(2) }}</div>
         </v-alert>
 
-        <v-card class="pa-4 mb-4" color="blue-grey-lighten-5">
-          <h3 class="text-h6 font-weight-medium mb-2">
-            📈 Statváltozások (Rating)
-          </h3>
-          <v-row>
-            <v-col
-              v-for="(value, stat) in simulation.statDifference"
-              :key="stat"
-              cols="6"
-              sm="4"
-              md="3"
-            >
-              <v-chip
-                :color="value > 0 ? 'green' : value < 0 ? 'red' : 'grey'"
-                class="ma-1"
-                size="large"
-                variant="elevated"
-              >
-                {{ value > 0 ? '+' : '' }}{{ value }} {{ stat }}
-              </v-chip>
-            </v-col>
-          </v-row>
+        <v-card v-if="statSummary.length" class="pa-4 mb-4" color="green-lighten-5">
+          <h3 class="text-h6 mb-2">📈 Statnövekedés összesen</h3>
+          <v-chip
+            v-for="(entry, idx) in statSummary"
+            :key="idx"
+            :color="entry.value > 0 ? 'green' : entry.value < 0 ? 'red' : 'grey'"
+            size="large"
+            variant="elevated"
+            class="ma-1"
+          >
+            {{ entry.value > 0 ? '+' : '' }}{{ entry.value }} {{ entry.type }}
+          </v-chip>
         </v-card>
 
+        <v-card v-if="rotationLog.length" class="pa-4 mb-4" color="grey-darken-3">
+          <h3 class="text-h6 mb-2">📖 Rotációs Napló (Képességek sorrendje)</h3>
+          
+          <div style="max-height: 200px; overflow-y: auto; background-color: rgba(0,0,0,0.3); border-radius: 4px; padding: 4px 0;">
+            <v-list density="compact" bg-color="transparent">
+              <v-list-item
+                v-for="(spell, idx) in rotationLog"
+                :key="idx"
+              >
+                <v-list-item-title>{{ idx + 1 }}. {{ spell }}</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </div>
+        </v-card>
         <div v-if="chartData.datasets.length">
-          <h3 class="text-h6 font-weight-medium mb-2">Sebzés lebontása (DPS)</h3>
+          <h3 class="text-h6 mb-2">Sebzés lebontása (DPS)</h3>
           <Bar :data="chartData" :options="chartOptions" :height="300" />
         </div>
       </div>
@@ -165,56 +184,51 @@ const getAuthHeaders = () => {
   };
 };
 
+// --- API ---
 const fetchItemNames = async () => {
   try {
     const res = await fetch("http://localhost:8080/api/character/items", {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    itemNames.value = await res.json();
+    if (res.ok) itemNames.value = await res.json();
   } catch (err) {
-    console.error("Nem sikerült betölteni az item listát:", err);
+    console.error("Item lista hiba:", err);
   }
 };
 
 const fetchCharacterStats = async () => {
-  try {
-    const res = await fetch(
-      `http://localhost:8080/api/character/${realm.value}/${character.value}/stats`,
-      { headers: getAuthHeaders() }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    characterStats.value = await res.json();
-  } catch (err) {
-    // 403 esetén sem állítsuk le a megjelenítést – lesz heurisztikus fallback
-    console.error("Nem sikerült lekérni a statokat:", err);
-  }
+  const res = await fetch(
+    `http://localhost:8080/api/character/${realm.value}/${character.value}/stats`,
+    { headers: getAuthHeaders() }
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  characterStats.value = await res.json();
 };
 
-const uniqueItemNames = computed(() =>
-  [...new Set(itemNames.value.map((name) => name))].sort()
-);
-
 const fetchEquipment = async () => {
+  const res = await fetch(
+    `http://localhost:8080/api/character/${realm.value}/${character.value}/equipment`,
+    { headers: getAuthHeaders() }
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  equipment.value = await res.json();
+};
+
+const loadCharacterData = async () => {
   loading.value = true;
   error.value = null;
   simulation.value = null;
   try {
-    const res = await fetch(
-      `http://localhost:8080/api/character/${realm.value}/${character.value}/equipment`,
-      { headers: getAuthHeaders() }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    equipment.value = await res.json();
-    // stats lekérés – ha 403, nem baj, fallback-et használunk
     await fetchCharacterStats();
+    await fetchEquipment();
   } catch (err) {
-    error.value = `Nem sikerült lekérni a felszerelést: ${err.message}`;
+    error.value = `Hiba a lekérés közben: ${err.message}`;
   } finally {
     loading.value = false;
   }
 };
 
+// --- Szimuláció ---
 const runSimulation = async () => {
   loading.value = true;
   error.value = null;
@@ -226,8 +240,7 @@ const runSimulation = async () => {
           .filter((name) => name.length > 0)
       ),
     ];
-
-    if (filtered.length === 0) {
+    if (!filtered.length) {
       error.value = "Adj meg legalább egy új tárgyat a szimulációhoz!";
       loading.value = false;
       return;
@@ -252,71 +265,72 @@ const runSimulation = async () => {
   }
 };
 
+// --- Stat megjelenítés ---
+const displayedStats = computed(() => {
+  if (!characterStats.value) return {};
+  return {
+    Strength: characterStats.value.strength,
+    Crit: characterStats.value.critPercent.toFixed(2) + "%",
+    Haste: characterStats.value.hastePercent.toFixed(2) + "%",
+    Mastery: characterStats.value.masteryPercent.toFixed(2) + "%",
+    Versatility: characterStats.value.versatilityPercent.toFixed(2) + "%",
+    "Weapon Speed": characterStats.value.weaponSpeed,
+  };
+});
+const formatStatValue = (v) => (typeof v === "number" ? v.toLocaleString() : v);
+
+// --- Item csere lista ---
 const addReplacement = () => replacements.value.push({ itemName: "" });
 const removeReplacement = (i) => replacements.value.splice(i, 1);
+const uniqueItemNames = computed(() => [...new Set(itemNames.value)].sort());
 
-/**
- * Fő stat kiválasztása:
- * 1) Ha van classId a /stats válaszból → fix mapping (STR/AGI/INT).
- * 2) Ha nincs (pl. 403), akkor heurisztika:
- *    - a három fő stat közül a legnagyobb érték marad;
- *    - holtversenyben prioritás: Strength > Agility > Intellect.
- */
-const pickMainStat = (stats) => {
-  const mainStats = ["STRENGTH", "AGILITY", "INTELLECT"];
-
-  // 1) ClassId alapján
+// --- Fő stat szűrés a táblában ---
+const pickMainStat = () => {
   const cid = characterStats.value?.classId;
-  if (cid) {
-    if ([1, 2, 6].includes(cid)) return "STRENGTH";      // Warrior, Paladin, DK
-    if ([3, 4, 7, 10, 12].includes(cid)) return "AGILITY"; // Hunter, Rogue, Monk, DH, Shaman(Enh)
-    if ([5, 8, 9, 11, 13].includes(cid)) return "INTELLECT"; // Mage, Priest, Warlock, Druid, Evoker
-  }
-
-  // 2) Heurisztika (ha nincs classId)
-  const values = { STRENGTH: -1, AGILITY: -1, INTELLECT: -1 };
-  for (const s of stats || []) {
-    const t = s?.type?.toUpperCase();
-    if (!t || !mainStats.includes(t)) continue;
-    const v = Number(s.value) || 0;
-    values[t] = Math.max(values[t], v);
-  }
-
-  // ha mind -1, nincs fő stat az itemen → maradjon "STRENGTH" by default (safe)
-  if (values.STRENGTH < 0 && values.AGILITY < 0 && values.INTELLECT < 0) {
-    return "STRENGTH";
-  }
-
-  // max kiválasztása, holtversenyben STR > AGI > INT
-  const order = ["STRENGTH", "AGILITY", "INTELLECT"];
-  let best = order[0];
-  for (const k of order) {
-    if (values[k] > values[best]) best = k;
-  }
-  return best;
+  if ([1, 2, 6].includes(cid)) return "STRENGTH"; // Warrior, Paladin, DK
+  if ([3, 4, 7, 10, 12].includes(cid)) return "AGILITY";
+  if ([5, 8, 9, 11, 13].includes(cid)) return "INTELLECT";
+  return "STRENGTH";
 };
-
-// Szűrés: csak a kiválasztott fő stat maradjon, STAMINA rejtve, minden rating marad
 const filteredStats = (stats) => {
   if (!stats) return [];
-  const hiddenStats = ["STAMINA"];
-  const mainStats = ["STRENGTH", "AGILITY", "INTELLECT"];
-  const keepMain = pickMainStat(stats);
-
+  const keepMain = pickMainStat();
+  const hidden = ["STAMINA"];
+  const main = ["STRENGTH", "AGILITY", "INTELLECT"];
   return stats.filter((s) => {
-    if (!s || !s.type) return false;
-    const type = s.type.toUpperCase();
-
-    if (hiddenStats.includes(type)) return false;
-
-    // ha fő stat, csak a kiválasztott maradjon
-    if (mainStats.includes(type)) return type === keepMain;
-
-    // rating-ek (CRIT_RATING, HASTE_RATING, stb.) maradnak
+    const type = s?.type?.toUpperCase();
+    if (!type || hidden.includes(type)) return false;
+    if (main.includes(type)) return type === keepMain;
     return true;
   });
 };
 
+// --- Statnövekedés megjelenítés (backend: statDifference) ---
+const ratingOrder = {
+  STRENGTH: "STRENGTH",
+  CRIT_RATING: "CRIT_RATING",
+  HASTE_RATING: "HASTE_RATING",
+  MASTERY_RATING: "MASTERY_RATING",
+  VERSATILITY_RATING: "VERSATILITY_RATING",
+};
+
+const statDiffRaw = computed(() => simulation.value?.statDifference ?? {});
+
+const statSummary = computed(() => {
+  const diff = statDiffRaw.value || {};
+  // csak a nem nulla értékek, rendezve a ratingOrder szerint
+  return Object.keys(ratingOrder)
+    .filter((k) => (diff[k] ?? 0) !== 0)
+    .map((k) => ({ type: ratingOrder[k], value: diff[k] ?? 0 }));
+});
+
+// ÚJ COMPUTED: Rotációs napló
+const rotationLog = computed(() => {
+  // A backend által küldött `rotationLog` lista a módosított riportból
+  return simulation.value?.modifiedReport?.rotationLog || [];
+});
+
+// --- Chart (ha kell) ---
 const chartData = computed(() => {
   if (!simulation.value?.modifiedReport?.damageBySpell)
     return { labels: [], datasets: [] };
@@ -332,7 +346,6 @@ const chartData = computed(() => {
     ],
   };
 });
-
 const chartOptions = {
   responsive: true,
   plugins: { legend: { display: false }, tooltip: { mode: "index" } },
