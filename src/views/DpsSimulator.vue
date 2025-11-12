@@ -36,11 +36,12 @@
         </v-row>
       </v-card>
 
+      <!-- 🔥 Táblázat ikonokkal -->
       <v-table v-if="equipment.length" hover density="comfortable" class="equipment-table">
         <thead>
           <tr>
             <th>Slot</th>
-            <th>Tárgy neve</th>
+            <th>Tárgy</th>
             <th>Item Level</th>
             <th>Statok</th>
           </tr>
@@ -48,7 +49,18 @@
         <tbody>
           <tr v-for="(item, i) in equipment" :key="i" class="equipment-row">
             <td>{{ item.slot }}</td>
-            <td>{{ item.name }}</td>
+            <td>
+              <div class="d-flex align-center">
+                <img
+                  :src="item.iconUrl || defaultIcon"
+                  alt="Item Icon"
+                  width="32"
+                  height="32"
+                  style="border-radius: 6px; margin-right: 8px;"
+                />
+                <span>{{ item.name }}</span>
+              </div>
+            </td>
             <td>{{ item.itemLevel }}</td>
             <td>
               <div v-if="filteredStats(item.stats)?.length">
@@ -70,23 +82,46 @@
       </v-table>
     </v-card>
 
+    <!-- 🧪 Több tárgy csere -->
     <v-card v-if="equipment.length" class="mx-auto mt-8 pa-6" max-width="900">
       <v-card-title class="text-h5 font-weight-bold">
         🧪 Több tárgy csere és DPS összehasonlítás
       </v-card-title>
 
-      <v-row v-for="(replacement, index) in replacements" :key="index" align="center" class="mb-2">
+      <v-row
+        v-for="(replacement, index) in replacements"
+        :key="index"
+        align="center"
+        class="mb-2"
+      >
         <v-col cols="10">
           <v-autocomplete
             v-model="replacement.itemName"
             :items="uniqueItemNames"
+            item-title="name"
             label="Válassz egy új tárgyat"
             variant="outlined"
             hide-no-data
             hide-details
             clearable
-          />
+          >
+            <template #item="{ props, item }">
+              <v-list-item v-bind="props">
+                <template #prepend>
+                  <img
+                    :src="item.raw.iconUrl || defaultIcon"
+                    alt="icon"
+                    width="24"
+                    height="24"
+                    style="border-radius: 4px; margin-right: 6px;"
+                  />
+                </template>
+                <v-list-item-title>{{ item.raw.name }}</v-list-item-title>
+              </v-list-item>
+            </template>
+          </v-autocomplete>
         </v-col>
+
         <v-col cols="2">
           <v-btn color="error" icon="mdi-delete" @click="removeReplacement(index)" title="Sor törlése" />
         </v-col>
@@ -108,6 +143,7 @@
         DPS szimuláció indítása
       </v-btn>
 
+      <!-- Eredménykártyák -->
       <div v-if="simulation" class="mt-6">
         <v-alert type="success" class="mb-2" border="start">
           <div><b>Eredeti DPS:</b> {{ simulation.originalDps.toFixed(2) }}</div>
@@ -131,18 +167,15 @@
 
         <v-card v-if="rotationLog.length" class="pa-4 mb-4" color="grey-darken-3">
           <h3 class="text-h6 mb-2">📖 Rotációs Napló (Képességek sorrendje)</h3>
-          
           <div style="max-height: 200px; overflow-y: auto; background-color: rgba(0,0,0,0.3); border-radius: 4px; padding: 4px 0;">
             <v-list density="compact" bg-color="transparent">
-              <v-list-item
-                v-for="(spell, idx) in rotationLog"
-                :key="idx"
-              >
+              <v-list-item v-for="(spell, idx) in rotationLog" :key="idx">
                 <v-list-item-title>{{ idx + 1 }}. {{ spell }}</v-list-item-title>
               </v-list-item>
             </v-list>
           </div>
         </v-card>
+
         <div v-if="chartData.datasets.length">
           <h3 class="text-h6 mb-2">Sebzés lebontása (DPS)</h3>
           <Bar :data="chartData" :options="chartOptions" :height="300" />
@@ -175,7 +208,9 @@ const error = ref(null);
 const simulation = ref(null);
 const replacements = ref([{ itemName: "" }]);
 const itemNames = ref([]);
+const defaultIcon = "https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
 
+// --- AUTH HEADER ---
 const getAuthHeaders = () => {
   const token = localStorage.getItem("authToken");
   return {
@@ -184,10 +219,10 @@ const getAuthHeaders = () => {
   };
 };
 
-// --- API ---
+// --- ITEM LISTA LEKÉRÉS ---
 const fetchItemNames = async () => {
   try {
-    const res = await fetch("http://localhost:8080/api/character/items", {
+    const res = await fetch("http://localhost:8080/api/character/items/full", {
       headers: getAuthHeaders(),
     });
     if (res.ok) itemNames.value = await res.json();
@@ -196,6 +231,7 @@ const fetchItemNames = async () => {
   }
 };
 
+// --- CHARACTER STATOK ---
 const fetchCharacterStats = async () => {
   const res = await fetch(
     `http://localhost:8080/api/character/${realm.value}/${character.value}/stats`,
@@ -205,6 +241,7 @@ const fetchCharacterStats = async () => {
   characterStats.value = await res.json();
 };
 
+// --- FELSZERELÉS LEKÉRÉS ---
 const fetchEquipment = async () => {
   const res = await fetch(
     `http://localhost:8080/api/character/${realm.value}/${character.value}/equipment`,
@@ -215,9 +252,15 @@ const fetchEquipment = async () => {
 };
 
 const loadCharacterData = async () => {
+  if (!realm.value || !character.value) {
+    error.value = "Add meg a szervert és a karakter nevét!";
+    return;
+  }
+
   loading.value = true;
   error.value = null;
   simulation.value = null;
+
   try {
     await fetchCharacterStats();
     await fetchEquipment();
@@ -228,7 +271,7 @@ const loadCharacterData = async () => {
   }
 };
 
-// --- Szimuláció ---
+// --- SZIMULÁCIÓ ---
 const runSimulation = async () => {
   loading.value = true;
   error.value = null;
@@ -265,7 +308,7 @@ const runSimulation = async () => {
   }
 };
 
-// --- Stat megjelenítés ---
+// --- STATOK ---
 const displayedStats = computed(() => {
   if (!characterStats.value) return {};
   return {
@@ -279,15 +322,17 @@ const displayedStats = computed(() => {
 });
 const formatStatValue = (v) => (typeof v === "number" ? v.toLocaleString() : v);
 
-// --- Item csere lista ---
+// --- ITEM CSERE LISTA ---
 const addReplacement = () => replacements.value.push({ itemName: "" });
 const removeReplacement = (i) => replacements.value.splice(i, 1);
-const uniqueItemNames = computed(() => [...new Set(itemNames.value)].sort());
+const uniqueItemNames = computed(() =>
+  [...new Map(itemNames.value.map((i) => [i.name, i])).values()]
+);
 
-// --- Fő stat szűrés a táblában ---
+// --- STAT SZŰRÉS ---
 const pickMainStat = () => {
   const cid = characterStats.value?.classId;
-  if ([1, 2, 6].includes(cid)) return "STRENGTH"; // Warrior, Paladin, DK
+  if ([1, 2, 6].includes(cid)) return "STRENGTH";
   if ([3, 4, 7, 10, 12].includes(cid)) return "AGILITY";
   if ([5, 8, 9, 11, 13].includes(cid)) return "INTELLECT";
   return "STRENGTH";
@@ -305,7 +350,7 @@ const filteredStats = (stats) => {
   });
 };
 
-// --- Statnövekedés megjelenítés (backend: statDifference) ---
+// --- STAT ÖSSZESÍTÉS ---
 const ratingOrder = {
   STRENGTH: "STRENGTH",
   CRIT_RATING: "CRIT_RATING",
@@ -313,24 +358,18 @@ const ratingOrder = {
   MASTERY_RATING: "MASTERY_RATING",
   VERSATILITY_RATING: "VERSATILITY_RATING",
 };
-
 const statDiffRaw = computed(() => simulation.value?.statDifference ?? {});
-
 const statSummary = computed(() => {
   const diff = statDiffRaw.value || {};
-  // csak a nem nulla értékek, rendezve a ratingOrder szerint
   return Object.keys(ratingOrder)
     .filter((k) => (diff[k] ?? 0) !== 0)
     .map((k) => ({ type: ratingOrder[k], value: diff[k] ?? 0 }));
 });
 
-// ÚJ COMPUTED: Rotációs napló
-const rotationLog = computed(() => {
-  // A backend által küldött `rotationLog` lista a módosított riportból
-  return simulation.value?.modifiedReport?.rotationLog || [];
-});
+// --- ROTÁCIÓ LOG ---
+const rotationLog = computed(() => simulation.value?.modifiedReport?.rotationLog || []);
 
-// --- Chart (ha kell) ---
+// --- CHART ---
 const chartData = computed(() => {
   if (!simulation.value?.modifiedReport?.damageBySpell)
     return { labels: [], datasets: [] };
