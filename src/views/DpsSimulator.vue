@@ -21,6 +21,26 @@
         </v-col>
       </v-row>
 
+      <v-card class="mt-4 pa-4" color="amber-lighten-5" elevation="0">
+        <h3 class="text-h6 mb-3">🎯 Támogatott specek</h3>
+        <v-row align="center">
+          <v-col cols="12" sm="6" md="4">
+            <div class="d-flex align-center">
+              <img
+                src="https://wow.zamimg.com/images/wow/icons/large/spell_holy_auraoflight.jpg"
+                alt="Retribution Paladin"
+                width="40"
+                height="40"
+                style="border-radius: 6px; margin-right: 10px;"
+              />
+            </div>
+          </v-col>
+        </v-row>
+        <div class="text-grey-darken-1 mt-2" style="font-size: 0.9rem;">
+          (A jövőben bővül további DPS specekkel)
+        </div>
+      </v-card>
+
       <v-alert v-if="error" type="error" class="mb-4" border="start" prominent>
         {{ error }}
       </v-alert>
@@ -36,7 +56,6 @@
         </v-row>
       </v-card>
 
-      <!-- 🔥 Táblázat ikonokkal -->
       <v-table v-if="equipment.length" hover density="comfortable" class="equipment-table">
         <thead>
           <tr>
@@ -82,7 +101,6 @@
       </v-table>
     </v-card>
 
-    <!-- 🧪 Több tárgy csere -->
     <v-card v-if="equipment.length" class="mx-auto mt-8 pa-6" max-width="900">
       <v-card-title class="text-h5 font-weight-bold">
         🧪 Több tárgy csere és DPS összehasonlítás
@@ -94,7 +112,7 @@
         align="center"
         class="mb-2"
       >
-        <v-col cols="10">
+        <v-col :md="getSlotOptions(replacement.itemName) ? 5 : 10" cols="12">
           <v-autocomplete
             v-model="replacement.itemName"
             :items="uniqueItemNames"
@@ -104,6 +122,7 @@
             hide-no-data
             hide-details
             clearable
+            @update:modelValue="replacement.targetSlot = null"
           >
             <template #item="{ props, item }">
               <v-list-item v-bind="props">
@@ -111,19 +130,77 @@
                   <img
                     :src="item.raw.iconUrl || defaultIcon"
                     alt="icon"
-                    width="24"
-                    height="24"
+                    width="28"
+                    height="28"
                     style="border-radius: 4px; margin-right: 6px;"
                   />
                 </template>
-                <v-list-item-title>{{ item.raw.name }}</v-list-item-title>
+                <v-list-item-subtitle class="d-flex align-center flex-wrap">
+
+                  <span class="text-blue-grey-darken-1 mr-2" v-if="item.raw.itemLevel">
+                    🧩 ilvl {{ item.raw.itemLevel }}
+                  </span>
+
+                  <!-- Main stat -->
+                  <span class="mr-2"
+                        v-if="item.raw.stats?.some(s => s.type === 'STRENGTH')"
+                        style="color: #c69b6d;">
+                    +{{ item.raw.stats.find(s => s.type === 'STRENGTH').value }} Strength
+                  </span>
+
+                  <!-- Crit -->
+                  <span class="mr-2"
+                        v-if="item.raw.stats?.some(s => s.type === 'CRIT_RATING')"
+                        style="color: #e50000;">
+                    +{{ item.raw.stats.find(s => s.type === 'CRIT_RATING').value }} Crit
+                  </span>
+
+                  <!-- Haste -->
+                  <span class="mr-2"
+                        v-if="item.raw.stats?.some(s => s.type === 'HASTE_RATING')"
+                        style="color: #008040;">
+                    +{{ item.raw.stats.find(s => s.type === 'HASTE_RATING').value }} Haste
+                  </span>
+
+                  <!-- Mastery -->
+                  <span class="mr-2"
+                        v-if="item.raw.stats?.some(s => s.type === 'MASTERY_RATING')"
+                        style="color: #a330c9;">
+                    +{{ item.raw.stats.find(s => s.type === 'MASTERY_RATING').value }} Mastery
+                  </span>
+
+                  <!-- Vers -->
+                  <span class="mr-2"
+                        v-if="item.raw.stats?.some(s => s.type === 'VERSATILITY_RATING')"
+                        style="color: #0070dd;">
+                    +{{ item.raw.stats.find(s => s.type === 'VERSATILITY_RATING').value }} Vers
+                  </span>
+
+                </v-list-item-subtitle>
+
               </v-list-item>
             </template>
           </v-autocomplete>
         </v-col>
 
-        <v-col cols="2">
-          <v-btn color="error" icon="mdi-delete" @click="removeReplacement(index)" title="Sor törlése" />
+        <v-col md="5" cols="12" v-if="getSlotOptions(replacement.itemName)">
+          <v-select
+            v-model="replacement.targetSlot"
+            :items="getSlotOptions(replacement.itemName)"
+            label="Slot"
+            variant="outlined"
+            hide-details
+          />
+        </v-col>
+
+        <v-col md="2" cols="12" class="text-right">
+          <v-btn
+            variant="text"
+            color="red-darken-2"
+            icon="mdi-delete"
+            @click="removeReplacement(index)"
+            title="Sor törlése"
+          />
         </v-col>
       </v-row>
 
@@ -143,7 +220,6 @@
         DPS szimuláció indítása
       </v-btn>
 
-      <!-- Eredménykártyák -->
       <div v-if="simulation" class="mt-6">
         <v-alert type="success" class="mb-2" border="start">
           <div><b>Eredeti DPS:</b> {{ simulation.originalDps.toFixed(2) }}</div>
@@ -206,11 +282,14 @@ const characterStats = ref(null);
 const loading = ref(false);
 const error = ref(null);
 const simulation = ref(null);
-const replacements = ref([{ itemName: "" }]);
-const itemNames = ref([]);
-const defaultIcon = "https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
 
-// --- AUTH HEADER ---
+const replacements = ref([{ itemName: "", targetSlot: null }]);
+
+const itemNames = ref([]);
+
+const defaultIcon =
+  "https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem("authToken");
   return {
@@ -219,10 +298,9 @@ const getAuthHeaders = () => {
   };
 };
 
-// --- ITEM LISTA LEKÉRÉS ---
 const fetchItemNames = async () => {
   try {
-    const res = await fetch("http://localhost:8080/api/character/items/full", {
+    const res = await fetch("http://localhost:8080/api/character/items/full-list", {
       headers: getAuthHeaders(),
     });
     if (res.ok) itemNames.value = await res.json();
@@ -231,7 +309,6 @@ const fetchItemNames = async () => {
   }
 };
 
-// --- CHARACTER STATOK ---
 const fetchCharacterStats = async () => {
   const res = await fetch(
     `http://localhost:8080/api/character/${realm.value}/${character.value}/stats`,
@@ -241,7 +318,6 @@ const fetchCharacterStats = async () => {
   characterStats.value = await res.json();
 };
 
-// --- FELSZERELÉS LEKÉRÉS ---
 const fetchEquipment = async () => {
   const res = await fetch(
     `http://localhost:8080/api/character/${realm.value}/${character.value}/equipment`,
@@ -256,11 +332,9 @@ const loadCharacterData = async () => {
     error.value = "Add meg a szervert és a karakter nevét!";
     return;
   }
-
   loading.value = true;
   error.value = null;
   simulation.value = null;
-
   try {
     await fetchCharacterStats();
     await fetchEquipment();
@@ -271,22 +345,32 @@ const loadCharacterData = async () => {
   }
 };
 
-// --- SZIMULÁCIÓ ---
+
+
 const runSimulation = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const filtered = [
-      ...new Set(
-        replacements.value
-          .map((r) => r.itemName.trim())
-          .filter((name) => name.length > 0)
-      ),
-    ];
-    if (!filtered.length) {
+    const payload = replacements.value
+      .map((r) => ({
+        itemName: r.itemName ? r.itemName.trim() : "",
+        targetSlot: r.targetSlot,
+      }))
+      .filter((r) => r.itemName.length > 0);
+
+    if (!payload.length) {
       error.value = "Adj meg legalább egy új tárgyat a szimulációhoz!";
       loading.value = false;
       return;
+    }
+
+    for (const r of payload) {
+      const options = getSlotOptions(r.itemName);
+      if (options && !r.targetSlot) {
+        error.value = `Meg kell adnod a pontos slotot a(z) '${r.itemName}' tárgyhoz! (Pl. FINGER_1)`;
+        loading.value = false;
+        return;
+      }
     }
 
     const res = await fetch(
@@ -295,11 +379,22 @@ const runSimulation = async () => {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          replacements: filtered.map((name) => ({ itemName: name })),
+          replacements: payload,
         }),
       }
     );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    if (!res.ok) {
+      let errorMsg = `HTTP ${res.status}`;
+      try {
+        const errData = await res.json();
+        if (errData && errData.message) {
+          errorMsg = errData.message;
+        }
+      } catch (e) {}
+      throw new Error(errorMsg);
+    }
+
     simulation.value = await res.json();
   } catch (err) {
     error.value = `Hiba a szimuláció során: ${err.message}`;
@@ -308,7 +403,6 @@ const runSimulation = async () => {
   }
 };
 
-// --- STATOK ---
 const displayedStats = computed(() => {
   if (!characterStats.value) return {};
   return {
@@ -320,16 +414,35 @@ const displayedStats = computed(() => {
     "Weapon Speed": characterStats.value.weaponSpeed,
   };
 });
-const formatStatValue = (v) => (typeof v === "number" ? v.toLocaleString() : v);
 
-// --- ITEM CSERE LISTA ---
-const addReplacement = () => replacements.value.push({ itemName: "" });
+const formatStatValue = (v) =>
+  typeof v === "number" ? v.toLocaleString() : v;
+
+const addReplacement = () =>
+  replacements.value.push({ itemName: "", targetSlot: null });
 const removeReplacement = (i) => replacements.value.splice(i, 1);
+
 const uniqueItemNames = computed(() =>
   [...new Map(itemNames.value.map((i) => [i.name, i])).values()]
 );
 
-// --- STAT SZŰRÉS ---
+const getSlotOptions = (itemName) => {
+  if (!itemName) return null;
+
+  const item = uniqueItemNames.value.find((i) => i.name === itemName);
+  const slot = item?.slot?.toUpperCase();
+
+  if (slot === "FINGER") return ["FINGER_1", "FINGER_2"];
+  if (slot === "TRINKET") return ["TRINKET_1", "TRINKET_2"];
+
+  const weaponSlots = ["WEAPON", "MAIN_HAND", "OFF_HAND", "TWO_HAND"];
+  if (weaponSlots.includes(slot)) {
+    return ["MAIN_HAND", "OFF_HAND", "TWO_HAND"];
+  }
+
+  return null;
+};
+
 const pickMainStat = () => {
   const cid = characterStats.value?.classId;
   if ([1, 2, 6].includes(cid)) return "STRENGTH";
@@ -337,20 +450,33 @@ const pickMainStat = () => {
   if ([5, 8, 9, 11, 13].includes(cid)) return "INTELLECT";
   return "STRENGTH";
 };
-const filteredStats = (stats) => {
-  if (!stats) return [];
+
+const filteredStats = (stats = []) => {
+  if (!Array.isArray(stats)) return [];
+
   const keepMain = pickMainStat();
+  const mainStats = ["STRENGTH", "AGILITY", "INTELLECT"];
   const hidden = ["STAMINA"];
-  const main = ["STRENGTH", "AGILITY", "INTELLECT"];
-  return stats.filter((s) => {
-    const type = s?.type?.toUpperCase();
-    if (!type || hidden.includes(type)) return false;
-    if (main.includes(type)) return type === keepMain;
-    return true;
-  });
+
+  return stats
+    .map((s) => ({
+      type: String(s?.type || "").toUpperCase(),
+      value: Number(s?.value || 0),
+    }))
+    .filter((s) => {
+      if (!s.type || hidden.includes(s.type)) return false;
+
+      if (mainStats.includes(s.type)) {
+        return s.type === keepMain;
+      }
+
+      if (s.type.endsWith("_RATING")) return true;
+
+      return true;
+    });
 };
 
-// --- STAT ÖSSZESÍTÉS ---
+
 const ratingOrder = {
   STRENGTH: "STRENGTH",
   CRIT_RATING: "CRIT_RATING",
@@ -358,7 +484,11 @@ const ratingOrder = {
   MASTERY_RATING: "MASTERY_RATING",
   VERSATILITY_RATING: "VERSATILITY_RATING",
 };
-const statDiffRaw = computed(() => simulation.value?.statDifference ?? {});
+
+const statDiffRaw = computed(
+  () => simulation.value?.statDifference ?? {}
+);
+
 const statSummary = computed(() => {
   const diff = statDiffRaw.value || {};
   return Object.keys(ratingOrder)
@@ -366,14 +496,16 @@ const statSummary = computed(() => {
     .map((k) => ({ type: ratingOrder[k], value: diff[k] ?? 0 }));
 });
 
-// --- ROTÁCIÓ LOG ---
-const rotationLog = computed(() => simulation.value?.modifiedReport?.rotationLog || []);
+const rotationLog = computed(
+  () => simulation.value?.modifiedReport?.rotationLog || []
+);
 
-// --- CHART ---
 const chartData = computed(() => {
   if (!simulation.value?.modifiedReport?.damageBySpell)
     return { labels: [], datasets: [] };
-  const entries = Object.entries(simulation.value.modifiedReport.damageBySpell);
+  const entries = Object.entries(
+    simulation.value.modifiedReport.damageBySpell
+  );
   return {
     labels: entries.map(([name]) => name),
     datasets: [
@@ -385,6 +517,7 @@ const chartData = computed(() => {
     ],
   };
 });
+
 const chartOptions = {
   responsive: true,
   plugins: { legend: { display: false }, tooltip: { mode: "index" } },
