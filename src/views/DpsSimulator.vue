@@ -299,9 +299,17 @@ const fetchCharacterStats = async () => {
     { headers: getAuthHeaders() }
   );
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(errorBody || `HTTP ${res.status}`);
-  }
+      const errorText = await res.text();
+      let msg = errorText;
+
+      try {
+        const json = JSON.parse(errorText);
+        msg = json.message || msg;
+      } catch (_) {}
+
+      throw new Error(msg);
+    }
+
   characterStats.value = await res.json();
 };
 
@@ -311,9 +319,17 @@ const fetchEquipment = async () => {
     { headers: getAuthHeaders() }
   );
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(errorBody || `HTTP ${res.status}`);
-  }
+      const errorText = await res.text();
+      let msg = errorText;
+
+      try {
+        const json = JSON.parse(errorText);
+        msg = json.message || msg;
+      } catch (_) {}
+
+      throw new Error(msg);
+    }
+
   equipment.value = await res.json();
 };
 
@@ -373,9 +389,17 @@ const runSimulation = async () => {
     );
 
     if (!res.ok) {
-      const errorBody = await res.text();
-      throw new Error(errorBody || `HTTP ${res.status}`);
+      const errorText = await res.text();
+      let msg = errorText;
+
+      try {
+        const json = JSON.parse(errorText);
+        msg = json.message || msg;
+      } catch (_) {}
+
+      throw new Error(msg);
     }
+
 
     simulation.value = await res.json();
   } catch (err) {
