@@ -1,12 +1,17 @@
 <template>
-  <div class="forgot">
+  <div class="auth-container">
     <h2>Elfelejtett jelszó</h2>
+
     <form @submit.prevent="sendResetEmail">
       <input v-model="email" type="email" placeholder="Email cím" required />
       <button type="submit">Jelszó visszaállítása</button>
     </form>
-    <p v-if="message" :class="{ success: success, error: !success }">{{ message }}</p>
-    <router-link to="/login">Vissza a bejelentkezéshez</router-link>
+
+    <p v-if="message" :class="['message-box', success ? 'message-success' : 'message-error']">
+      {{ message }}
+    </p>
+
+    <router-link to="/login" class="auth-links">Vissza a bejelentkezéshez</router-link>
   </div>
 </template>
 
@@ -31,31 +36,78 @@ const sendResetEmail = async () => {
 </script>
 
 <style scoped>
-.forgot {
+.auth-container {
   display: flex;
   flex-direction: column;
-  max-width: 300px;
-  margin: 100px auto;
-  color: white;
+  max-width: 320px;
+  margin: 80px auto;
+  padding: 20px;
+  border-radius: 10px;
+  background: #fff;
+  color: #222;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.1);
 }
+
+h2 {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
 input {
-  margin: 5px 0;
-  padding: 8px;
+  margin: 6px 0;
+  padding: 10px;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 15px;
 }
+
 button {
-  padding: 8px;
+  padding: 10px;
   background: #42b883;
   border: none;
   color: white;
   cursor: pointer;
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
 }
+
 button:hover {
-  background: #2c9f75;
+  background: #329867;
 }
-.success {
-  color: #00ff88;
+
+.message-box {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid;
+  margin-top: 12px;
+  font-weight: 500;
 }
-.error {
-  color: #ff4b4b;
+
+.message-success {
+  background: #e6fff3;
+  border-color: #12c27a;
+  color: #0f9a63;
+}
+
+.message-error {
+  background: #ffe6e6;
+  border-color: #e53939;
+  color: #c62828;
+}
+
+.auth-links {
+  margin-top: 18px;
+  text-align: center;
+  display: block;
+  color: #42b883;
+  text-decoration: underline;
+}
+
+.auth-links:hover {
+  color: #2c9f75;
 }
 </style>

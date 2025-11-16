@@ -1,5 +1,5 @@
 <template>
-  <div class="register">
+  <div class="auth-container">
     <h2>Regisztráció</h2>
 
     <form @submit.prevent="registerUser">
@@ -8,13 +8,11 @@
       <button type="submit">Regisztráció</button>
     </form>
 
-    <p v-if="message" :class="{'error-box': isError, 'success-box': !isError}">
+    <p v-if="message" :class="['message-box', isError ? 'message-error' : 'message-success']">
       {{ message }}
     </p>
 
-    <router-link to="/login" class="back-link">
-      Már van fiókod? Bejelentkezés
-    </router-link>
+    <router-link to="/login" class="auth-links">Már van fiókod? Bejelentkezés</router-link>
   </div>
 </template>
 
@@ -31,13 +29,13 @@ const registerUser = async () => {
   try {
     const res = await AuthService.register(email.value, password.value);
     isError.value = false;
-    message.value = "✅ Regisztráció sikeres! Ellenőrizd az emailed az aktiváló linkért.";
+    message.value = "Regisztráció sikeres! Ellenőrizd az emailed az aktiváló linkért.";
     console.log("Backend válasz:", res.data);
   } catch (err) {
-    const backendMsg =
-      typeof err.response?.data === "string"
-        ? err.response.data
-        : err.response?.data?.message || "Ismeretlen hiba";
+    const backendMsg = typeof err.response?.data === "string"
+      ? err.response.data
+      : err.response?.data?.message || "Ismeretlen hiba";
+
     isError.value = true;
     message.value = backendMsg;
   }
@@ -45,51 +43,78 @@ const registerUser = async () => {
 </script>
 
 <style scoped>
-.register {
+.auth-container {
   display: flex;
   flex-direction: column;
-  max-width: 300px;
-  margin: 100px auto;
-  color: white;
+  max-width: 320px;
+  margin: 80px auto;
+  padding: 20px;
+  border-radius: 10px;
+  background: #fff;
+  color: #222;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.1);
 }
+
+h2 {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
 input {
-  margin: 5px 0;
-  padding: 8px;
+  margin: 6px 0;
+  padding: 10px;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 15px;
 }
+
 button {
-  padding: 8px;
+  padding: 10px;
   background: #42b883;
   border: none;
   color: white;
   cursor: pointer;
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
 }
+
 button:hover {
-  background: #2c9f75;
+  background: #329867;
 }
-.error-box {
-  background-color: #ff4b4b22;
-  border: 1px solid #ff4b4b;
-  padding: 8px;
+
+.message-box {
+  padding: 10px;
   border-radius: 6px;
-  color: #ff4b4b;
-  margin-top: 10px;
+  border: 1px solid;
+  margin-top: 12px;
+  font-weight: 500;
 }
-.success-box {
-  background-color: #00ff8822;
-  border: 1px solid #00ff88;
-  padding: 8px;
-  border-radius: 6px;
-  color: #00ff88;
-  margin-top: 10px;
+
+.message-success {
+  background: #e6fff3;
+  border-color: #12c27a;
+  color: #0f9a63;
 }
-.back-link {
-  margin-top: 15px;
-  color: #42b883;
+
+.message-error {
+  background: #ffe6e6;
+  border-color: #e53939;
+  color: #c62828;
+}
+
+.auth-links {
+  margin-top: 18px;
   text-align: center;
   display: block;
+  color: #42b883;
   text-decoration: underline;
 }
-.back-link:hover {
+
+.auth-links:hover {
   color: #2c9f75;
 }
 </style>
