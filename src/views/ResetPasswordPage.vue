@@ -39,7 +39,7 @@ const resetPassword = async () => {
     }, 2000);
   } catch (err) {
     success.value = false;
-    message.value = "❌ Hiba történt: " + (err.response?.data || "Ismeretlen hiba");
+    message.value = "Hiba történt: " + (err.response?.data || "Ismeretlen hiba");
   }
 };
 </script>

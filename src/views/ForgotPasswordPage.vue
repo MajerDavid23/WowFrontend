@@ -22,10 +22,10 @@ const sendResetEmail = async () => {
   try {
     await AuthService.forgotPassword(email.value);
     success.value = true;
-    message.value = "📧 Ha létezik ilyen fiók, e-mailt küldtünk a visszaállításhoz!";
+    message.value = "Ha létezik ilyen fiók, e-mailt küldtünk a visszaállításhoz!";
   } catch (err) {
     success.value = false;
-    message.value = "❌ Hiba történt: " + (err.response?.data || "Ismeretlen hiba");
+    message.value = "Hiba történt: " + (err.response?.data || "Ismeretlen hiba");
   }
 };
 </script>

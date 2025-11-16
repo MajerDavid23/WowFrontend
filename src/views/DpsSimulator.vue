@@ -16,7 +16,7 @@
 
         <v-col cols="12" md="4">
           <v-btn color="primary" :loading="loading" @click="loadCharacterData" class="w-100">
-            {{ loading ? "Betöltés..." : "Felszerelés + Statok lekérése" }}
+            {{ loading ? "Betöltés..." : "Felszerelés lekérése" }}
           </v-btn>
         </v-col>
       </v-row>
@@ -136,48 +136,35 @@
                   />
                 </template>
                 <v-list-item-subtitle class="d-flex align-center flex-wrap">
-
                   <span class="text-blue-grey-darken-1 mr-2" v-if="item.raw.itemLevel">
-                    🧩 ilvl {{ item.raw.itemLevel }}
+                     ilvl {{ item.raw.itemLevel }}
                   </span>
-
-                  <!-- Main stat -->
                   <span class="mr-2"
                         v-if="item.raw.stats?.some(s => s.type === 'STRENGTH')"
                         style="color: #c69b6d;">
                     +{{ item.raw.stats.find(s => s.type === 'STRENGTH').value }} Strength
                   </span>
-
-                  <!-- Crit -->
                   <span class="mr-2"
                         v-if="item.raw.stats?.some(s => s.type === 'CRIT_RATING')"
                         style="color: #e50000;">
                     +{{ item.raw.stats.find(s => s.type === 'CRIT_RATING').value }} Crit
                   </span>
-
-                  <!-- Haste -->
                   <span class="mr-2"
                         v-if="item.raw.stats?.some(s => s.type === 'HASTE_RATING')"
                         style="color: #008040;">
                     +{{ item.raw.stats.find(s => s.type === 'HASTE_RATING').value }} Haste
                   </span>
-
-                  <!-- Mastery -->
                   <span class="mr-2"
                         v-if="item.raw.stats?.some(s => s.type === 'MASTERY_RATING')"
                         style="color: #a330c9;">
                     +{{ item.raw.stats.find(s => s.type === 'MASTERY_RATING').value }} Mastery
                   </span>
-
-                  <!-- Vers -->
                   <span class="mr-2"
                         v-if="item.raw.stats?.some(s => s.type === 'VERSATILITY_RATING')"
                         style="color: #0070dd;">
                     +{{ item.raw.stats.find(s => s.type === 'VERSATILITY_RATING').value }} Vers
                   </span>
-
                 </v-list-item-subtitle>
-
               </v-list-item>
             </template>
           </v-autocomplete>
@@ -284,11 +271,8 @@ const error = ref(null);
 const simulation = ref(null);
 
 const replacements = ref([{ itemName: "", targetSlot: null }]);
-
 const itemNames = ref([]);
-
-const defaultIcon =
-  "https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
+const defaultIcon = "https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("authToken");
@@ -314,7 +298,10 @@ const fetchCharacterStats = async () => {
     `http://localhost:8080/api/character/${realm.value}/${character.value}/stats`,
     { headers: getAuthHeaders() }
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(errorBody || `HTTP ${res.status}`);
+  }
   characterStats.value = await res.json();
 };
 
@@ -323,7 +310,10 @@ const fetchEquipment = async () => {
     `http://localhost:8080/api/character/${realm.value}/${character.value}/equipment`,
     { headers: getAuthHeaders() }
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(errorBody || `HTTP ${res.status}`);
+  }
   equipment.value = await res.json();
 };
 
@@ -339,13 +329,11 @@ const loadCharacterData = async () => {
     await fetchCharacterStats();
     await fetchEquipment();
   } catch (err) {
-    error.value = `Hiba a lekérés közben: ${err.message}`;
+    error.value = err.message;
   } finally {
     loading.value = false;
   }
 };
-
-
 
 const runSimulation = async () => {
   loading.value = true;
@@ -385,14 +373,8 @@ const runSimulation = async () => {
     );
 
     if (!res.ok) {
-      let errorMsg = `HTTP ${res.status}`;
-      try {
-        const errData = await res.json();
-        if (errData && errData.message) {
-          errorMsg = errData.message;
-        }
-      } catch (e) {}
-      throw new Error(errorMsg);
+      const errorBody = await res.text();
+      throw new Error(errorBody || `HTTP ${res.status}`);
     }
 
     simulation.value = await res.json();
@@ -457,6 +439,14 @@ const filteredStats = (stats = []) => {
   const keepMain = pickMainStat();
   const mainStats = ["STRENGTH", "AGILITY", "INTELLECT"];
   const hidden = ["STAMINA"];
+  
+  const apiToDisplayMap = {
+    "CRITICAL STRIKE": "CRIT",
+    "HASTE": "HASTE",
+    "MASTERY": "MASTERY",
+    "VERSATILITY": "VERSATILITY",
+    "STRENGTH": "STRENGTH"
+  };
 
   return stats
     .map((s) => ({
@@ -466,14 +456,23 @@ const filteredStats = (stats = []) => {
     .filter((s) => {
       if (!s.type || hidden.includes(s.type)) return false;
 
-      if (mainStats.includes(s.type)) {
-        return s.type === keepMain;
+      const normalizedType = apiToDisplayMap[s.type] || s.type;
+      
+      if (mainStats.includes(normalizedType)) {
+        return normalizedType === keepMain;
       }
 
-      if (s.type.endsWith("_RATING")) return true;
+      if (mainStats.includes(s.type)) {
+         return s.type === keepMain;
+      }
 
-      return true;
-    });
+      const displayableSecondary = ["CRIT", "HASTE", "MASTERY", "VERSATILITY"];
+      return displayableSecondary.includes(normalizedType);
+    })
+    .map(s => ({
+        ...s,
+        type: apiToDisplayMap[s.type] || s.type 
+    }));
 };
 
 

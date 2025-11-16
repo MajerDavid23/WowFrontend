@@ -39,12 +39,10 @@ const resetMessage = ref("");
 const isError = ref(false);
 
 onMounted(() => {
-  // ✅ ha a reset-password oldalról jött vissza
   if (route.query.successReset === "true") {
     resetMessage.value = "✅ Jelszavad frissítve, jelentkezz be újra!";
   }
 
-  // ✅ ha aktiválási linkről jött vissza
   if (route.query.activated === "true") {
     resetMessage.value = "✅ Fiókod sikeresen aktiválva, most már bejelentkezhetsz!";
   }
@@ -57,21 +55,17 @@ const loginUser = async () => {
     message.value = "✅ Sikeres bejelentkezés!";
     console.log("Backend válasz:", res.data);
 
-    // 🔹 token mentése (ha a backend küldi)
     if (res.data?.token) {
       localStorage.setItem("authToken", res.data.token);
       
-      // 🔹 1 másodperc múlva átirányítás a DPS szimulátorra
-      // EZT ÁTHELYEZTÜK IDE, HOGY CSAK AKKOR FUSSON LE, HA VAN TOKEN
       setTimeout(() => {
         console.log("➡️ Navigálás /simulator oldalra...");
         router.push({ name: "simulator" });
       }, 1000);
 
     } else {
-      // Ha a bejelentkezés sikeres, de a válaszban nincs token, az hiba.
       isError.value = true;
-      message.value = "❌ Hiba: A szerver nem küldött belépési tokent.";
+      message.value = "Hiba: A szerver nem küldött belépési tokent.";
       console.error("A bejelentkezési válasz nem tartalmazott tokent!", res.data);
     }
 
@@ -81,7 +75,7 @@ const loginUser = async () => {
         ? err.response.data
         : err.response?.data?.message || "Ismeretlen hiba";
     isError.value = true;
-    message.value = "❌ " + backendMsg;
+    message.value = backendMsg;
   }
 };
 </script>

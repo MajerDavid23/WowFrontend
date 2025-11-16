@@ -39,7 +39,7 @@ const registerUser = async () => {
         ? err.response.data
         : err.response?.data?.message || "Ismeretlen hiba";
     isError.value = true;
-    message.value = "❌ " + backendMsg;
+    message.value = backendMsg;
   }
 };
 </script>

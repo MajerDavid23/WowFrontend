@@ -21,7 +21,6 @@ const vuetify = createVuetify({
  },
 })
 
-// ✅ App inicializálása
 createApp(App)
  .use(router)
  .use(vuetify)

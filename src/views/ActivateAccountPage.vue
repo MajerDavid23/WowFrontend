@@ -27,7 +27,7 @@ onMounted(async () => {
   if (!token) {
     loading.value = false;
     success.value = false;
-    message.value = "❌ Hiányzó aktiválási token.";
+    message.value = "Hiányzó aktiválási token.";
     return;
   }
 
@@ -39,13 +39,12 @@ onMounted(async () => {
   } catch (err) {
     success.value = false;
     message.value =
-      "❌ Hiba történt az aktiválás során: " +
+      "Hiba történt az aktiválás során: " +
       (err.response?.data || "Ismeretlen hiba");
   } finally {
     loading.value = false;
   }
 
-  // ✅ ha sikeres volt, automatikus átirányítás a login oldalra
   if (success.value) {
     setTimeout(() => {
       router.push({ path: "/login", query: { activated: "true" } });
